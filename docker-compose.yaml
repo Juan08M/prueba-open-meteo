@@ -1,0 +1,49 @@
+name: prueba-open-meteo
+
+services:
+  postgres:
+    image: postgres:16.9-bookworm
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow_local
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  airflow:
+    build: .
+    user: "${AIRFLOW_UID:-50000}:0"
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW_HOME: /opt/project/runtime
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/project/dags
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__PARALLELISM: "4"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow_local@postgres/airflow
+      AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/project/logs
+      PYTHONPATH: /opt/project/src
+      WEATHER_CONFIG_PATH: /opt/project/config/settings.json
+      WEATHER_DATA_DIR: /opt/project/data
+    ports:
+      - "127.0.0.1:8090:8080"
+    volumes:
+      - ./config:/opt/project/config:ro
+      - ./src:/opt/project/src:ro
+      - ./dags:/opt/project/dags:ro
+      - ./tests:/opt/project/tests:ro
+      - ./data:/opt/project/data
+      - ./logs:/opt/project/logs
+      - ./runtime:/opt/project/runtime
+    command: standalone
+
+volumes:
+  postgres_data:
